@@ -2,7 +2,7 @@ $(document).ready(function() {
     const token = localStorage.getItem('token');
     
     if(!token) {
-       window.location.href = 'login.html';
+        window.location.href = 'login.html';
         return;
     }
 
@@ -12,6 +12,8 @@ $(document).ready(function() {
         type: 'GET',
         headers: { 'Authorization': 'Bearer ' + token },
         success: function(response) {
+            console.log("Server Response:", response);
+            
             if(response.status === 'success') {
                 $('#name').val(response.data.name);
                 $('#email').val(response.data.email);
@@ -19,11 +21,13 @@ $(document).ready(function() {
                 $('#dob').val(response.data.dob);
                 $('#contact').val(response.data.contact);
             } else {
+                console.error("Profile fetch error message:", response.message);
                 localStorage.clear();
-               window.location.href = 'login.html';
+                window.location.href = 'login.html';
             }
         },
-        error: function() {
+        error: function(xhr, status, error) {
+            console.error("AJAX Error:", status, error);
             localStorage.clear();
             window.location.href = 'login.html';
         }
