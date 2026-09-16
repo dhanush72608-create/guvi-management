@@ -4,7 +4,7 @@ ini_set('display_errors', 1);
 header('Content-Type: application/json');
 
 try {
-    require __DIR__ . '/vendor/autoload.php';
+    require __DIR__ . '/../vendor/autoload.php';
 
     // Support both JSON payloads and standard form-data ($_POST)
     $data = json_decode(file_get_contents("php://input"), true);
