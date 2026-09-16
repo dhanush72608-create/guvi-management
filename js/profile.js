@@ -6,9 +6,9 @@ $(document).ready(function() {
         console.warn("No token found in localStorage!");
     }
 
-    // Fetch Profile data via AJAX
+    // Fetch Profile data via AJAX with explicit relative path
     $.ajax({
-        url: 'php/profile.php',
+        url: './php/profile.php',
         type: 'GET',
         headers: { 'Authorization': 'Bearer ' + token },
         success: function(response) {
@@ -21,18 +21,13 @@ $(document).ready(function() {
                 $('#dob').val(response.data.dob);
                 $('#contact').val(response.data.contact);
             } else {
-                // Show the error on screen instead of redirecting
                 $('#alert-box').html(`<div class="alert alert-danger">Server Error: ${response.message}</div>`);
                 console.error("Profile fetch error message:", response.message);
-                // localStorage.clear();
-                // window.location.href = 'login.html'; // <-- Temporarily commented out
             }
         },
         error: function(xhr, status, error) {
-            $('#alert-box').html(`<div class="alert alert-danger">AJAX Error: ${status} - ${error}</div>`);
-            console.error("AJAX Error:", status, error);
-            // localStorage.clear();
-            // window.location.href = 'login.html'; // <-- Temporarily commented out
+            $('#alert-box').html(`<div class="alert alert-danger">HTTP Error Status: ${xhr.status} - ${error}</div>`);
+            console.error("AJAX Error Details:", xhr.responseText);
         }
     });
 
@@ -47,7 +42,7 @@ $(document).ready(function() {
         };
 
         $.ajax({
-            url: 'php/profile.php',
+            url: './php/profile.php',
             type: 'POST',
             headers: { 'Authorization': 'Bearer ' + token },
             contentType: 'application/json',
