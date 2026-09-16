@@ -1,9 +1,10 @@
 $(document).ready(function() {
     const token = localStorage.getItem('token');
     
-    // Temporarily disabled token check so it stays on page
+    // Enforce token check for security
     if(!token) {
-        console.warn("No token found in localStorage!");
+        window.location.href = 'login.html';
+        return;
     }
 
     // Fetch Profile data via AJAX with explicit relative path
@@ -23,11 +24,15 @@ $(document).ready(function() {
             } else {
                 $('#alert-box').html(`<div class="alert alert-danger">Server Error: ${response.message}</div>`);
                 console.error("Profile fetch error message:", response.message);
+                localStorage.clear();
+                window.location.href = 'login.html';
             }
         },
         error: function(xhr, status, error) {
             $('#alert-box').html(`<div class="alert alert-danger">HTTP Error Status: ${xhr.status} - ${error}</div>`);
             console.error("AJAX Error Details:", xhr.responseText);
+            localStorage.clear();
+            window.location.href = 'login.html';
         }
     });
 
