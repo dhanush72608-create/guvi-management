@@ -1,6 +1,10 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 header('Content-Type: application/json');
-require 'C:/guvi-usermanagement/vendor/autoload.php';
+
+// Use relative path for Composer autoload so it works on any server/container
+require __DIR__ . '/vendor/autoload.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
 
@@ -16,8 +20,13 @@ if(empty($email) || empty($password) || empty($name)) {
     exit;
 }
 
-// 1. MySQL Database Connection (XAMPP default password is empty "")
-$mysqli = new mysqli("localhost", "root", "", "guvi_db");
+// 1. MySQL Database Connection using Environment Variables (with fallback defaults)
+$db_host = getenv('DB_HOST') ?: 'localhost';
+$db_user = getenv('DB_USER') ?: 'root';
+$db_pass = getenv('DB_PASS') ?: '';
+$db_name = getenv('DB_NAME') ?: 'guvi_db';
+
+$mysqli = new mysqli($db_host, $db_user, $db_pass, $db_name);
 if ($mysqli->connect_error) {
     echo json_encode(["status" => "error", "message" => "Database connection failed: " . $mysqli->connect_error]);
     exit;
@@ -44,8 +53,9 @@ $stmt->bind_param("sss", $name, $email, $hashedPassword);
 if($stmt->execute()) {
     $userId = $stmt->insert_id;
     
-    // 2. MongoDB Connection for User Profile details
-    $mongoClient = new MongoDB\Client("mongodb://localhost:27017");
+    // 2. MongoDB Connection using Render's MONGO_URI environment variable
+    $mongoUri = getenv('MONGO_URI') ?: "mongodb://localhost:27017";
+    $mongoClient = new MongoDB\Client($mongoUri);
     $collection = $mongoClient->guvi_db->user_profiles;
     
     $collection->insertOne([
