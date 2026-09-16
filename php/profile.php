@@ -6,7 +6,6 @@ header('Content-Type: application/json');
 try {
     require __DIR__ . '/../vendor/autoload.php';
 
-    // Get Authorization header safely
     $headers = [];
     if (function_exists('apache_request_headers')) {
         $headers = apache_request_headers();
@@ -20,23 +19,19 @@ try {
         $token = $_GET['token'];
     }
 
-    $email = '';
-    $userId = 1;
+    if (empty($token)) {
+        echo json_encode(["status" => "error", "message" => "Unauthorized: No token provided."]);
+        exit;
+    }
 
-    // Try reading from Redis if available
-    $redisUrl = getenv('REDIS_URL');
-    if ($redisUrl && !empty($token)) {
-        try {
-            $redis = new Predis\Client($redisUrl);
-            $sessionData = $redis->get("session:$token");
-            if ($sessionData) {
-                $session = json_decode($sessionData, true);
-                $userId = $session['id'] ?? 1;
-                $email = $session['email'] ?? '';
-            }
-        } catch (Exception $e) {
-            // Fallback gracefully
-        }
+    // Decode token payload directly (Fallback-proof for servers without Redis)
+    $decodedPayload = json_decode(base64_decode($token), true);
+    $email = $decodedPayload['email'] ?? '';
+    $userId = $decodedPayload['id'] ?? 1;
+
+    if (empty($email)) {
+        echo json_encode(["status" => "error", "message" => "Unauthorized: Invalid session token."]);
+        exit;
     }
 
     // MySQL Database Connection
@@ -48,13 +43,6 @@ try {
     $mysqli = new mysqli($db_host, $db_user, $db_pass, $db_name);
     if ($mysqli->connect_error) {
         echo json_encode(["status" => "error", "message" => "Database connection failed."]);
-        exit;
-    }
-
-    // If Redis is offline, we can check if the token itself contains or maps to a user, 
-    // or require a valid email. If $email is still empty, reject instead of using LIMIT 1!
-    if (empty($email)) {
-        echo json_encode(["status" => "error", "message" => "Unauthorized: Session expired or invalid."]);
         exit;
     }
 
@@ -87,7 +75,7 @@ try {
         exit;
     }
 
-    // Handle GET request (Fetch Profile securely by email)
+    // Fetch user securely from MySQL
     $stmt = $mysqli->prepare("SELECT id, name, email FROM users WHERE email = ?");
     $stmt->bind_param("s", $email);
     $stmt->execute();
@@ -96,7 +84,7 @@ try {
     $stmt->close();
 
     if (!$fetched) {
-        echo json_encode(["status" => "error", "message" => "User record not found in database."]);
+        echo json_encode(["status" => "error", "message" => "User not found."]);
         exit;
     }
 

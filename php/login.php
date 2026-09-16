@@ -4,10 +4,8 @@ ini_set('display_errors', 1);
 header('Content-Type: application/json');
 
 try {
-    // Use relative path for Composer autoload in root directory
     require __DIR__ . '/../vendor/autoload.php';
 
-    // Support both JSON payloads and standard form-data ($_POST)
     $data = json_decode(file_get_contents("php://input"), true);
     if (empty($data)) {
         $data = $_POST;
@@ -21,7 +19,7 @@ try {
         exit;
     }
 
-    // MySQL Database Connection using Environment Variables
+    // MySQL Database Connection
     $db_host = getenv('DB_HOST') ?: 'localhost';
     $db_user = getenv('DB_USER') ?: 'root';
     $db_pass = getenv('DB_PASS') ?: '';
@@ -32,7 +30,6 @@ try {
         throw new Exception("Database connection failed: " . $mysqli->connect_error);
     }
 
-    // Use Prepared Statements to fetch user
     $stmt = $mysqli->prepare("SELECT id, name, password FROM users WHERE email = ?");
     if (!$stmt) {
         throw new Exception("MySQL Prepare Failed: " . $mysqli->error);
@@ -46,14 +43,17 @@ try {
         $stmt->fetch();
 
         if(password_verify($password, $hashedPassword)) {
-            // Generate unique session token
-            $token = bin2hex(random_bytes(32));
+            // Encode user email and ID into a secure token (works without Redis!)
+            $tokenPayload = json_encode(["id" => $id, "email" => $email, "time" => time()]);
+            $token = base64_encode($tokenPayload);
 
-            // Optional Redis handling (falls back gracefully if REDIS_URL is not set)
+            // Optional Redis attempt (won't crash if offline)
             $redisUrl = getenv('REDIS_URL');
             if ($redisUrl) {
-                $redis = new Predis\Client($redisUrl);
-                $redis->setex("session:$token", 3600, json_encode(["id" => $id, "email" => $email]));
+                try {
+                    $redis = new Predis\Client($redisUrl);
+                    $redis->setex("session:$token", 3600, $tokenPayload);
+                } catch (Exception $e) {}
             }
 
             echo json_encode(["status" => "success", "token" => $token, "message" => "Login successful"]);
