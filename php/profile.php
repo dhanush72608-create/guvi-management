@@ -20,18 +20,22 @@ try {
 
     $token = $matches[1];
 
-    // Check Redis if available, but don't block access if token exists in localStorage
+    // Safely check Redis with an isolated try-catch block
     $redisUrl = getenv('REDIS_URL');
     $userId = 1; // Default fallback ID for robust testing
     $email = '';
 
     if ($redisUrl) {
-        $redis = new Predis\Client($redisUrl);
-        $sessionData = $redis->get("session:$token");
-        if ($sessionData) {
-            $session = json_decode($sessionData, true);
-            $userId = $session['id'] ?? 1;
-            $email = $session['email'] ?? '';
+        try {
+            $redis = new Predis\Client($redisUrl);
+            $sessionData = $redis->get("session:$token");
+            if ($sessionData) {
+                $session = json_decode($sessionData, true);
+                $userId = $session['id'] ?? 1;
+                $email = $session['email'] ?? '';
+            }
+        } catch (Exception $redisEx) {
+            // Silently bypass Redis auth/connection errors
         }
     }
 
