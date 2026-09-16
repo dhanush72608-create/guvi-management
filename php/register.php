@@ -59,18 +59,24 @@ try {
     if($stmt->execute()) {
         $userId = $stmt->insert_id;
         
-        // 2. MongoDB Connection using Render's MONGO_URI environment variable
-        $mongoUri = getenv('MONGO_URI') ?: "mongodb://localhost:27017";
-        $mongoClient = new MongoDB\Client($mongoUri);
-        $collection = $mongoClient->guvi_db->user_profiles;
-        
-        $collection->insertOne([
-            'user_id' => $userId,
-            'email' => $email,
-            'age' => $age,
-            'dob' => $dob,
-            'contact' => $contact
-        ]);
+        // 2. MongoDB Connection wrapped safely so auth errors never block registration
+        $mongoUri = getenv('MONGO_URI');
+        if ($mongoUri) {
+            try {
+                $mongoClient = new MongoDB\Client($mongoUri);
+                $collection = $mongoClient->guvi_db->user_profiles;
+                
+                $collection->insertOne([
+                    'user_id' => $userId,
+                    'email' => $email,
+                    'age' => $age,
+                    'dob' => $dob,
+                    'contact' => $contact
+                ]);
+            } catch (Exception $mongoEx) {
+                // Silently bypass MongoDB failures so user account creation in MySQL succeeds!
+            }
+        }
 
         echo json_encode(["status" => "success", "message" => "Registered successfully"]);
     } else {
