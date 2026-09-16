@@ -15,7 +15,7 @@ $(document).ready(function() {
             success: function(response) {
                 if(response.status === 'success') {
                     // Store token in browser localStorage (No PHP Sessions used)
-                    localStorage.setItem('session_token', response.token);
+                    localStorage.setItem('token', response.token);
                     localStorage.setItem('user_email', formData.email);
                     
                     $('#alert-box').html('<div class="alert alert-success">Login successful! Redirecting...</div>');
