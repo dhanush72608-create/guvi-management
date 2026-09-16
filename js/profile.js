@@ -2,7 +2,7 @@ $(document).ready(function() {
     const token = localStorage.getItem('token');
     
     if(!token) {
-        window.location.href = 'login.html';
+       // window.location.href = 'login.html';
         return;
     }
 
@@ -20,7 +20,7 @@ $(document).ready(function() {
                 $('#contact').val(response.data.contact);
             } else {
                 localStorage.clear();
-                window.location.href = 'login.html';
+               // window.location.href = 'login.html';
             }
         },
         error: function() {
