@@ -6,7 +6,7 @@ header('Content-Type: application/json');
 try {
     require __DIR__ . '/../vendor/autoload.php';
 
-    // Get Authorization header safely with fallbacks
+    // Get Authorization header safely
     $headers = [];
     if (function_exists('apache_request_headers')) {
         $headers = apache_request_headers();
@@ -20,11 +20,11 @@ try {
         $token = $_GET['token'];
     }
 
-    // Safely check Redis with an isolated try-catch block
-    $redisUrl = getenv('REDIS_URL');
-    $userId = 1; 
     $email = '';
+    $userId = 1;
 
+    // Try reading from Redis if available
+    $redisUrl = getenv('REDIS_URL');
     if ($redisUrl && !empty($token)) {
         try {
             $redis = new Predis\Client($redisUrl);
@@ -34,8 +34,8 @@ try {
                 $userId = $session['id'] ?? 1;
                 $email = $session['email'] ?? '';
             }
-        } catch (Exception $redisEx) {
-            // Bypass Redis errors
+        } catch (Exception $e) {
+            // Fallback gracefully
         }
     }
 
@@ -48,6 +48,13 @@ try {
     $mysqli = new mysqli($db_host, $db_user, $db_pass, $db_name);
     if ($mysqli->connect_error) {
         echo json_encode(["status" => "error", "message" => "Database connection failed."]);
+        exit;
+    }
+
+    // If Redis is offline, we can check if the token itself contains or maps to a user, 
+    // or require a valid email. If $email is still empty, reject instead of using LIMIT 1!
+    if (empty($email)) {
+        echo json_encode(["status" => "error", "message" => "Unauthorized: Session expired or invalid."]);
         exit;
     }
 
@@ -73,29 +80,27 @@ try {
                     ]],
                     ['upsert' => true]
                 );
-            } catch (Exception $mongoEx) {
-                // Bypass MongoDB write errors gracefully
-            }
+            } catch (Exception $e) {}
         }
 
         echo json_encode(["status" => "success", "message" => "Profile updated successfully"]);
         exit;
     }
 
-    // Handle GET request (Fetch Profile from MySQL)
-    if (!empty($email)) {
-        $stmt = $mysqli->prepare("SELECT name, email FROM users WHERE email = ?");
-        $stmt->bind_param("s", $email);
-    } else {
-        $stmt = $mysqli->prepare("SELECT name, email FROM users LIMIT 1");
-    }
-    
+    // Handle GET request (Fetch Profile securely by email)
+    $stmt = $mysqli->prepare("SELECT id, name, email FROM users WHERE email = ?");
+    $stmt->bind_param("s", $email);
     $stmt->execute();
-    $stmt->bind_result($name, $email);
+    $stmt->bind_result($userId, $name, $email);
     $fetched = $stmt->fetch();
     $stmt->close();
 
-    // Get additional details from MongoDB Atlas with a safe try-catch block
+    if (!$fetched) {
+        echo json_encode(["status" => "error", "message" => "User record not found in database."]);
+        exit;
+    }
+
+    // Get additional details from MongoDB Atlas safely
     $age = ''; $dob = ''; $contact = '';
     $mongoUri = getenv('MONGO_URI');
     if ($mongoUri) {
@@ -103,7 +108,7 @@ try {
             $mongoClient = new MongoDB\Client($mongoUri);
             $collection = $mongoClient->selectDatabase('guvi_users')->selectCollection('profiles');
             $profile = $collection->findOne(['user_id' => $userId]);
-            if (!$profile && !empty($email)) {
+            if (!$profile) {
                 $profile = $collection->findOne(['email' => $email]);
             }
             if ($profile) {
@@ -111,16 +116,14 @@ try {
                 $dob = $profile['dob'] ?? '';
                 $contact = $profile['contact'] ?? '';
             }
-        } catch (Exception $mongoEx) {
-            // Silently bypass MongoDB auth errors so MySQL data still displays!
-        }
+        } catch (Exception $e) {}
     }
 
     echo json_encode([
         "status" => "success",
         "data" => [
-            "name" => $name ?? 'User',
-            "email" => $email ?? '',
+            "name" => $name,
+            "email" => $email,
             "age" => $age,
             "dob" => $dob,
             "contact" => $contact
